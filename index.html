@@ -87,7 +87,7 @@
         /**
          * 주의: 아래 SCRIPT_URL에 구글 앱스 스크립트 '배포' 후 받은 URL을 반드시 붙여넣으세요.
          */
-        const SCRIPT_URL = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxjpXfR_5IR4rVH_sCLP3ijQc4_PTTWrKdU8eIlEIiKnJ7bkY2-yoeU8JXo5FxShuw/exec";
 
         const wordForm = document.getElementById('wordForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -98,7 +98,7 @@
         wordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            if (SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbzA-k0c8DQNbZ39ILod0JvjQZ-w3iJKnV3Gfm1tpRUO2tO6VGTzXMRMAWl5VIzv7z8/exec")) {
+            if (SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxjpXfR_5IR4rVH_sCLP3ijQc4_PTTWrKdU8eIlEIiKnJ7bkY2-yoeU8JXo5FxShuw/exec")) {
                 showTemporaryError("설정 오류: 스크립트 URL을 입력해주세요.");
                 return;
             }
