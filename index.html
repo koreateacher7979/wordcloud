@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 의견 참여 - 워드클라우드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .input-focus:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+            outline: none;
+        }
+        .loading-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0) }
+            100% { transform: rotate(360deg) }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-6">
+
+    <!-- 개발자 정보 -->
+    <header class="w-full max-w-md text-center mb-8">
+        <p class="text-xs text-gray-500 font-medium">개발자: 가치있는 미래교육 연구소 대표 김병찬</p>
+    </header>
+
+    <main class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+        <!-- 입력 폼 섹션 -->
+        <div id="formSection">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">의견 남기기</h1>
+            <p class="text-gray-500 text-sm text-center mb-8">강사님의 질문에 생각나는 단어를 적어주세요.</p>
+            
+            <form id="wordForm" class="space-y-4">
+                <div class="space-y-3">
+                    <input type="text" name="word1" placeholder="첫 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
+                    <input type="text" name="word2" placeholder="두 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
+                    <input type="text" name="word3" placeholder="세 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
+                    <input type="text" name="word4" placeholder="네 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
+                    <input type="text" name="word5" placeholder="다섯 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <span>제출하기</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- 완료 메시지 섹션 -->
+        <div id="successSection" class="hidden text-center py-10">
+            <div class="mb-6 flex justify-center">
+                <div class="bg-green-100 p-4 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="C5 13l4 4L19 7" />
+                    </svg>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">제출 완료!</h2>
+            <p class="text-gray-600 mb-8 leading-relaxed">
+                답변이 성공적으로 전달되었습니다.<br>
+                강사님의 진행을 잠시만 기다려주세요.
+            </p>
+            <button onclick="resetForm()" class="text-blue-600 font-semibold hover:underline decoration-2 underline-offset-4">
+                또다른 답변 남기기
+            </button>
+        </div>
+
+        <!-- 오류 메시지 -->
+        <div id="errorMessage" class="hidden mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg text-center">
+            전송 중 오류가 발생했습니다. 다시 시도해주세요.
+        </div>
+    </main>
+
+    <script>
+        /**
+         * 주의: 아래 SCRIPT_URL에 구글 앱스 스크립트 '배포' 후 받은 URL을 반드시 붙여넣으세요.
+         * 주소가 'YOUR_APPS_SCRIPT_...' 로 남아있으면 작동하지 않습니다.
+         */
+        const SCRIPT_URL = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+        const wordForm = document.getElementById('wordForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const formSection = document.getElementById('formSection');
+        const successSection = document.getElementById('successSection');
+        const errorMessage = document.getElementById('errorMessage');
+
+        wordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // 1. URL 설정 확인
+            if (SCRIPT_URL.includes("YOUR_APPS_SCRIPT")) {
+                showTemporaryError("개발자 설정 오류: SCRIPT_URL이 설정되지 않았습니다.");
+                console.error("오류: SCRIPT_URL 변수에 실제 구글 웹 앱 URL을 입력해야 합니다.");
+                return;
+            }
+
+            // 2. 입력값 확인
+            const formData = new FormData(wordForm);
+            const words = Array.from(formData.values()).filter(w => w.trim() !== "");
+            
+            if (words.length === 0) {
+                showTemporaryError("최소 한 개의 단어는 입력해야 합니다.");
+                return;
+            }
+
+            setLoading(true);
+            errorMessage.classList.add('hidden');
+
+            try {
+                // 구글 앱스 스크립트는 보안 정책상 no-cors를 사용하는 경우가 많습니다.
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    body: formData
+                });
+
+                // no-cors 모드에서는 응답 내용을 확인할 수 없으므로 시도가 성공했다고 가정하고 성공 화면을 보여줍니다.
+                showSuccess();
+            } catch (error) {
+                console.error('전송 오류:', error);
+                showTemporaryError("서버 전송에 실패했습니다. 네트워크를 확인해주세요.");
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<div class="loading-spinner"></div><span>제출 중...</span>';
+                submitBtn.classList.add('opacity-70');
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span>제출하기</span>';
+                submitBtn.classList.remove('opacity-70');
+            }
+        }
+
+        function showSuccess() {
+            formSection.classList.add('hidden');
+            successSection.classList.remove('hidden');
+        }
+
+        function resetForm() {
+            wordForm.reset();
+            successSection.classList.add('hidden');
+            formSection.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+        }
+
+        function showTemporaryError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.classList.remove('hidden');
+            setTimeout(() => errorMessage.classList.add('hidden'), 5000);
+        }
+    </script>
+</body>
+</html>
