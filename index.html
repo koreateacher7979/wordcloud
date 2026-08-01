@@ -1,125 +1,158 @@
-const SPREADSHEET_ID = '1-ksbEhSa-xIDIyqT3BzEvGB8WbrFDfZQqYhrOeoJhXw';
-
-function doGet(e) {
-  // GET 요청시 현재 설정값과 데이터(단어 빈도수)를 JSON으로 반환
-  const action = e.parameter.action;
-  if (action === 'getState') {
-    return getState();
-  }
-  return ContentService.createTextOutput(JSON.stringify({error: 'Invalid GET action'})).setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  // POST 요청 처리 (단어 제출, 데이터 초기화, 질문 수정)
-  // CORS Preflight를 피하기 위해 text/plain으로 요청을 받습니다.
-  let params;
-  try {
-    params = JSON.parse(e.postData.contents);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({error: 'Invalid JSON payload'})).setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  const action = params.action;
-
-  if (action === 'submitWords') {
-    return submitWords(params.words);
-  } else if (action === 'resetData') {
-    return resetData(params.password);
-  } else if (action === 'updateQuestion') {
-    return updateQuestion(params.password, params.question);
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({error: 'Invalid POST action'})).setMimeType(ContentService.MimeType.JSON);
-}
-
-function getState() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const settingsSheet = ss.getSheetByName('설정');
-  const dataSheet = ss.getSheetByName('데이터');
-
-  // 설정 시트 데이터 가져오기 (A2:E2)
-  const settings = settingsSheet.getRange('A2:E2').getValues()[0];
-  const password = settings[0];
-  const title = settings[1];
-  const target = settings[2];
-  const numInputs = settings[3];
-  const question = settings[4];
-
-  // 데이터 시트 단어 가져오기 (1행은 헤더이므로 제외, A2부터)
-  const lastRow = dataSheet.getLastRow();
-  let words = [];
-  if (lastRow > 1) {
-    const dataRange = dataSheet.getRange(2, 1, lastRow - 1, 1);
-    // 빈 셀 제외하고 1차원 배열로 평탄화
-    words = dataRange.getValues().flat().filter(String);
-  }
-
-  // 서버에서 단어 빈도수를 계산하여 전송량 최소화 (빠른 동기화를 위함)
-  const freq = {};
-  words.forEach(w => {
-    const trimmed = w.toString().trim();
-    if(trimmed.length > 0) {
-      freq[trimmed] = (freq[trimmed] || 0) + 1;
-    }
-  });
-
-  const result = {
-    title: title,
-    target: target,
-    numInputs: parseInt(numInputs, 10) || 1,
-    question: question,
-    words: freq
-  };
-
-  // 캐시 방지 및 JSON 응답 반환
-  const output = ContentService.createTextOutput(JSON.stringify(result));
-  output.setMimeType(ContentService.MimeType.JSON);
-  return output;
-}
-
-function submitWords(words) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const dataSheet = ss.getSheetByName('데이터');
-  
-  const rows = words.filter(String).map(w => [w.toString().trim()]);
-  
-  if (rows.length > 0) {
-    // 마지막 행 다음부터 제출된 단어들 추가
-    dataSheet.getRange(dataSheet.getLastRow() + 1, 1, rows.length, 1).setValues(rows);
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
-}
-
-function resetData(password) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const settingsSheet = ss.getSheetByName('설정');
-  const realPassword = settingsSheet.getRange('A2').getValue();
-
-  if (password.toString() === realPassword.toString()) {
-    const dataSheet = ss.getSheetByName('데이터');
-    const lastRow = dataSheet.getLastRow();
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>단어 제출 앱</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 for beautiful popups -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     
-    // 1행(헤더)을 제외하고 A2부터 일괄 삭제
-    if (lastRow > 1) {
-      dataSheet.getRange(2, 1, lastRow - 1, 1).clearContent();
+    <style>
+        body { font-family: 'Noto Sans KR', 'Inter', sans-serif; background-color: #f3f4f6; }
+        .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="w-full min-h-screen flex flex-col items-center">
+
+<!-- Header -->
+<div class="w-full bg-white shadow-sm py-3 px-4 text-center border-b border-gray-200">
+    <p class="text-xs text-gray-500 font-semibold tracking-wide">개발자 : 가치있는 미래교육 연구소 대표 김병찬</p>
+</div>
+
+<!-- Main Container -->
+<main class="flex-1 w-full max-w-md mx-auto p-4 flex flex-col justify-center">
+    
+    <!-- Loading State -->
+    <div id="loading-view" class="flex flex-col items-center justify-center py-20">
+        <div class="spinner mb-4"></div>
+        <p class="text-gray-500 font-medium">연수 정보를 불러오는 중입니다...</p>
+    </div>
+
+    <!-- Content View -->
+    <div id="content-view" class="hidden bg-white rounded-2xl shadow-lg p-6 w-full fade-in">
+        <div class="text-center mb-6">
+            <span id="target-badge" class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold mb-2"></span>
+            <h1 id="title-text" class="text-xl font-bold text-gray-800 mb-4 break-keep"></h1>
+            <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <p id="question-text" class="text-lg font-semibold text-gray-700 break-keep"></p>
+            </div>
+        </div>
+
+        <form id="word-form" class="space-y-4">
+            <div id="inputs-container" class="space-y-3">
+                <!-- Inputs will be injected here -->
+            </div>
+            
+            <button type="submit" id="submit-btn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition duration-200 ease-in-out transform hover:scale-[1.02]">
+                단어 제출하기
+            </button>
+        </form>
+    </div>
+</main>
+
+<script>
+    // ==============================================================================
+    // [중요] 아래 GAS_URL 변수에 복사한 Apps Script '웹 앱 URL'을 반드시 붙여넣으세요!
+    // ==============================================================================
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwreKJE-xvoJHEqSfJ-9fmdcf_S1ia5KnlS_8k_8qUrLPmLqQbHvB0YwdgFOH2q2X4/exec"; 
+    
+    let currentSettings = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        if(GAS_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
+            Swal.fire({ icon: 'warning', title: '설정 오류', text: 'HTML 코드 내에 Apps Script 웹 앱 URL을 입력해주세요.' });
+            return;
+        }
+        fetchSettings();
+    });
+
+    async function fetchSettings() {
+        try {
+            const response = await fetch(`${GAS_URL}?action=getState`);
+            const data = await response.json();
+            
+            if(data.error) throw new Error(data.error);
+            
+            currentSettings = data;
+            renderUI(data);
+            
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: '연결 실패', text: '데이터를 불러오지 못했습니다. 네트워크 상태나 URL을 확인해주세요.' });
+            console.error(error);
+        }
     }
-    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
-  } else {
-    return ContentService.createTextOutput(JSON.stringify({success: false, error: '인증번호가 일치하지 않습니다.'})).setMimeType(ContentService.MimeType.JSON);
-  }
-}
 
-function updateQuestion(password, question) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const settingsSheet = ss.getSheetByName('설정');
-  const realPassword = settingsSheet.getRange('A2').getValue();
+    function renderUI(data) {
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('content-view').classList.remove('hidden');
 
-  if (password.toString() === realPassword.toString()) {
-    // E2 셀에 새로운 질문 반영
-    settingsSheet.getRange('E2').setValue(question);
-    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
-  } else {
-    return ContentService.createTextOutput(JSON.stringify({success: false, error: '인증번호가 일치하지 않습니다.'})).setMimeType(ContentService.MimeType.JSON);
-  }
-}
+        document.getElementById('title-text').innerText = data.title;
+        document.getElementById('target-badge').innerText = data.target;
+        document.getElementById('question-text').innerText = data.question;
+
+        const container = document.getElementById('inputs-container');
+        container.innerHTML = '';
+        
+        for (let i = 0; i < data.numInputs; i++) {
+            const inputWrapper = document.createElement('div');
+            inputWrapper.innerHTML = `
+                <div class="relative">
+                    <input type="text" class="word-input w-full pl-4 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm" placeholder="단어를 입력하세요 (${i+1})" required autocomplete="off">
+                </div>
+            `;
+            container.appendChild(inputWrapper);
+        }
+    }
+
+    document.getElementById('word-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const inputs = document.querySelectorAll('.word-input');
+        const words = Array.from(inputs).map(input => input.value.trim()).filter(val => val.length > 0);
+        
+        if (words.length === 0) {
+            Swal.fire({ icon: 'warning', title: '입력 확인', text: '최소 한 개 이상의 단어를 입력해주세요.' });
+            return;
+        }
+
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner inline-block w-5 h-5 border-2 border-white border-left-transparent mr-2 align-middle"></span> 처리중...`;
+
+        try {
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'submitWords', words: words })
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: '제출 완료!',
+                    text: '단어가 성공적으로 접수되었습니다.',
+                    confirmButtonColor: '#3b82f6',
+                    confirmButtonText: '확인'
+                }).then(() => {
+                    inputs.forEach(input => input.value = ''); // 폼 초기화
+                });
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: '오류 발생', text: '제출 중 문제가 발생했습니다. 다시 시도해주세요.' });
+            console.error(error);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '단어 제출하기';
+        }
+    });
+</script>
+</body>
+</html>
