@@ -1,193 +1,125 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>실시간 워드클라우드 입력</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <style>
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #f0fdf4; /* 부드러운 그린톤 배경 */
-            overflow: hidden;
-            touch-action: pan-y;
-        }
-    </style>
-</head>
-<body class="flex flex-col h-screen text-gray-800">
+const SPREADSHEET_ID = '1-ksbEhSa-xIDIyqT3BzEvGB8WbrFDfZQqYhrOeoJhXw';
 
-    <header class="bg-teal-600 text-white shadow-md z-10 flex-shrink-0">
-        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
-            <h1 class="text-lg font-bold" id="header-title">의견 수집 중...</h1>
-            <div class="text-[10px] sm:text-xs text-teal-100 whitespace-nowrap text-right">
-                개발자:<br class="sm:hidden">가치있는 미래교육 연구소 대표 김병찬
-            </div>
-        </div>
-    </header>
+function doGet(e) {
+  // GET 요청시 현재 설정값과 데이터(단어 빈도수)를 JSON으로 반환
+  const action = e.parameter.action;
+  if (action === 'getState') {
+    return getState();
+  }
+  return ContentService.createTextOutput(JSON.stringify({error: 'Invalid GET action'})).setMimeType(ContentService.MimeType.JSON);
+}
 
-    <main class="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center relative">
-        <!-- 로딩 오버레이 -->
-        <div id="loading-overlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center">
-            <svg class="animate-spin h-10 w-10 text-teal-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <p class="font-bold text-teal-800">연수 정보를 불러오는 중입니다...</p>
-        </div>
+function doPost(e) {
+  // POST 요청 처리 (단어 제출, 데이터 초기화, 질문 수정)
+  // CORS Preflight를 피하기 위해 text/plain으로 요청을 받습니다.
+  let params;
+  try {
+    params = JSON.parse(e.postData.contents);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({error: 'Invalid JSON payload'})).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  const action = params.action;
 
-        <div class="w-full max-w-lg bg-white rounded-3xl shadow-xl p-6 sm:p-8 w-full border border-teal-50">
-            <div class="text-center mb-6">
-                <span id="target-badge" class="inline-block px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-xs font-bold mb-2 hidden">대상</span>
-                <h2 id="title-text" class="text-2xl sm:text-3xl font-black text-gray-800 mb-2"></h2>
-                <div class="w-12 h-1 bg-teal-500 mx-auto rounded-full my-4"></div>
-                <h3 id="question-text" class="text-lg font-bold text-gray-600 break-keep"></h3>
-            </div>
-            
-            <!-- 동적 입력칸 컨테이너 -->
-            <div id="input-container" class="space-y-3 mb-8"></div>
-            
-            <button id="submit-btn" onclick="submitData()" class="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-lg hover:bg-teal-700 active:bg-teal-800 transition shadow-md flex justify-center items-center">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                의견 제출하기
-            </button>
-        </div>
-    </main>
+  if (action === 'submitWords') {
+    return submitWords(params.words);
+  } else if (action === 'resetData') {
+    return resetData(params.password);
+  } else if (action === 'updateQuestion') {
+    return updateQuestion(params.password, params.question);
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({error: 'Invalid POST action'})).setMimeType(ContentService.MimeType.JSON);
+}
 
-    <!-- 커스텀 모달 (alert 대체) -->
-    <div id="custom-modal" class="fixed inset-0 bg-black/60 z-[100] hidden flex-col items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm transform transition-all text-center">
-            <h3 id="modal-title" class="text-xl font-bold mb-2 text-gray-800"></h3>
-            <p id="modal-msg" class="text-gray-600 mb-6 text-sm break-keep"></p>
-            <button onclick="document.getElementById('custom-modal').style.display='none'" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition">확인</button>
-        </div>
-    </div>
+function getState() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const settingsSheet = ss.getSheetByName('설정');
+  const dataSheet = ss.getSheetByName('데이터');
 
-    <script>
-        // ==========================================
-        // 🚨 중요: 여기에 GAS 웹앱 배포 URL을 붙여넣으세요!
-        // ==========================================
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbyY34d4YJvOjkkVTZGSYtQPNub1vN_Wnxt50icyqBT-4HGyWJSpXNqAUxk5QfbNbg/exec"; 
+  // 설정 시트 데이터 가져오기 (A2:E2)
+  const settings = settingsSheet.getRange('A2:E2').getValues()[0];
+  const password = settings[0];
+  const title = settings[1];
+  const target = settings[2];
+  const numInputs = settings[3];
+  const question = settings[4];
 
-        // 커스텀 모달 표시 함수
-        function showModal(title, msg) {
-            document.getElementById('modal-title').innerText = title;
-            document.getElementById('modal-msg').innerHTML = msg;
-            document.getElementById('custom-modal').style.display = 'flex';
-        }
+  // 데이터 시트 단어 가져오기 (1행은 헤더이므로 제외, A2부터)
+  const lastRow = dataSheet.getLastRow();
+  let words = [];
+  if (lastRow > 1) {
+    const dataRange = dataSheet.getRange(2, 1, lastRow - 1, 1);
+    // 빈 셀 제외하고 1차원 배열로 평탄화
+    words = dataRange.getValues().flat().filter(String);
+  }
 
-        // API 호출 공통 래퍼 함수
-        async function callGasApi(action, payload = {}) {
-            try {
-                const response = await fetch(GAS_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: action, payload: payload })
-                });
-                const result = await response.json();
-                if (!result.success) throw new Error(result.message);
-                return result.data;
-            } catch (error) {
-                console.error("API Error:", error);
-                showModal("통신 오류", "서버 통신 오류: " + error.message);
-                throw error;
-            }
-        }
+  // 서버에서 단어 빈도수를 계산하여 전송량 최소화 (빠른 동기화를 위함)
+  const freq = {};
+  words.forEach(w => {
+    const trimmed = w.toString().trim();
+    if(trimmed.length > 0) {
+      freq[trimmed] = (freq[trimmed] || 0) + 1;
+    }
+  });
 
-        let currentConfigStr = "";
+  const result = {
+    title: title,
+    target: target,
+    numInputs: parseInt(numInputs, 10) || 1,
+    question: question,
+    words: freq
+  };
 
-        // 설정(제목, 질문, 입력칸 수) 실시간 동기화 함수
-        async function syncConfig() {
-            try {
-                const config = await callGasApi('getConfig');
-                const newConfigStr = JSON.stringify(config);
-                
-                // 설정 변경사항이 없으면 패스 (과부하 방지)
-                if (currentConfigStr === newConfigStr) return; 
-                currentConfigStr = newConfigStr;
-                
-                // UI 텍스트 업데이트
-                document.getElementById('header-title').innerText = config.title;
-                document.getElementById('title-text').innerText = config.title;
-                document.getElementById('question-text').innerText = config.question;
-                
-                const badge = document.getElementById('target-badge');
-                badge.innerText = config.target;
-                badge.classList.remove('hidden');
+  // 캐시 방지 및 JSON 응답 반환
+  const output = ContentService.createTextOutput(JSON.stringify(result));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}
 
-                // 동적 입력칸 갯수 처리 (사용자가 입력 중이던 텍스트 보호)
-                const container = document.getElementById('input-container');
-                const currentInputs = container.querySelectorAll('input');
-                
-                // 설정된 입력칸 갯수가 변경되었을 때만 새로 생성
-                if (currentInputs.length !== config.count) {
-                    const backupValues = Array.from(currentInputs).map(input => input.value);
-                    container.innerHTML = '';
-                    
-                    for (let i = 0; i < config.count; i++) {
-                        const input = document.createElement('input');
-                        input.type = 'text';
-                        input.className = "w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-lg font-medium transition shadow-inner placeholder-gray-400";
-                        input.placeholder = `${i + 1}번째 단어 입력`;
-                        if (backupValues[i]) input.value = backupValues[i]; // 기존 값 복원
-                        container.appendChild(input);
-                    }
-                }
-            } catch (error) {
-                console.error("설정 갱신 오류:", error);
-            }
-        }
+function submitWords(words) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const dataSheet = ss.getSheetByName('데이터');
+  
+  const rows = words.filter(String).map(w => [w.toString().trim()]);
+  
+  if (rows.length > 0) {
+    // 마지막 행 다음부터 제출된 단어들 추가
+    dataSheet.getRange(dataSheet.getLastRow() + 1, 1, rows.length, 1).setValues(rows);
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+}
 
-        // 초기 화면 설정 로드
-        async function init() {
-            try {
-                await syncConfig(); // 최초 1회 실행
-                document.getElementById('loading-overlay').style.display = 'none';
-                
-                // 3초마다 설정(질문, 제목 등) 변경 여부 백그라운드 확인
-                setInterval(syncConfig, 3000);
-            } catch (error) {
-                document.getElementById('loading-overlay').innerHTML = `<p class="text-red-500 font-bold">초기화 실패. 관리자에게 문의하세요.</p>`;
-            }
-        }
+function resetData(password) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const settingsSheet = ss.getSheetByName('설정');
+  const realPassword = settingsSheet.getRange('A2').getValue();
 
-        // 데이터 제출
-        async function submitData() {
-            const inputs = document.querySelectorAll('#input-container input');
-            const words = [];
-            
-            inputs.forEach(input => {
-                const val = input.value.trim();
-                if (val) words.push(val);
-            });
+  if (password.toString() === realPassword.toString()) {
+    const dataSheet = ss.getSheetByName('데이터');
+    const lastRow = dataSheet.getLastRow();
+    
+    // 1행(헤더)을 제외하고 A2부터 일괄 삭제
+    if (lastRow > 1) {
+      dataSheet.getRange(2, 1, lastRow - 1, 1).clearContent();
+    }
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } else {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: '인증번호가 일치하지 않습니다.'})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
 
-            if (words.length === 0) {
-                showModal("입력 확인", "단어를 하나 이상 입력해주세요.");
-                return;
-            }
+function updateQuestion(password, question) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const settingsSheet = ss.getSheetByName('설정');
+  const realPassword = settingsSheet.getRange('A2').getValue();
 
-            const btn = document.getElementById('submit-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '제출 완료!';
-            btn.disabled = true;
-
-            try {
-                // 비동기로 백그라운드에서 전송 (await 사용 안 함) -> 사용자 체감 속도 0초
-                callGasApi('submitWords', { words: words }).catch(e => console.error("백그라운드 에러", e));
-                
-                showModal("제출 완료", "성공적으로 제출되었습니다!<br>강사용 화면을 확인해주세요.");
-                inputs.forEach(input => input.value = ''); // 입력칸 즉시 초기화
-                
-            } catch (error) {
-                showModal("오류", "제출 중 문제가 발생했습니다.");
-            } finally {
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }, 1500); // 1.5초 후 버튼 다시 활성화
-            }
-        }
-
-        window.onload = init;
-    </script>
-</body>
-</html>
+  if (password.toString() === realPassword.toString()) {
+    // E2 셀에 새로운 질문 반영
+    settingsSheet.getRange('E2').setValue(question);
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  } else {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: '인증번호가 일치하지 않습니다.'})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
