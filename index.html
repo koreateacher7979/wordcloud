@@ -2,178 +2,166 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 의견 참여 - 워드클라우드</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>실시간 워드클라우드 입력</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
-        body {
-            font-family: 'Pretendard', sans-serif;
-            background-color: #f3f4f6;
-        }
-        .input-focus:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-            outline: none;
-        }
-        .loading-spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 3px solid white;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0) }
-            100% { transform: rotate(360deg) }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0fdf4; /* 부드러운 그린톤 배경 */
+            overflow: hidden;
+            touch-action: pan-y;
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center p-6">
+<body class="flex flex-col h-screen text-gray-800">
 
-    <!-- 개발자 정보 -->
-    <header class="w-full max-w-md text-center mb-8">
-        <p class="text-xs text-gray-500 font-medium">개발자: 가치있는 미래교육 연구소 대표 김병찬</p>
+    <header class="bg-teal-600 text-white shadow-md z-10 flex-shrink-0">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-lg font-bold" id="header-title">의견 수집 중...</h1>
+            <div class="text-[10px] sm:text-xs text-teal-100 whitespace-nowrap text-right">
+                개발자:<br class="sm:hidden">가치있는 미래교육 연구소 대표 김병찬
+            </div>
+        </div>
     </header>
 
-    <main class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
-        <!-- 입력 폼 섹션 -->
-        <div id="formSection">
-            <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">의견 남기기</h1>
-            <p class="text-gray-500 text-sm text-center mb-8">강사님의 질문에 생각나는 단어를 적어주세요.</p>
-            
-            <form id="wordForm" class="space-y-4">
-                <div class="space-y-3">
-                    <input type="text" name="word1" placeholder="첫 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
-                    <input type="text" name="word2" placeholder="두 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
-                    <input type="text" name="word3" placeholder="세 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
-                    <input type="text" name="word4" placeholder="네 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
-                    <input type="text" name="word5" placeholder="다섯 번째 단어" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl input-focus transition-all">
-                </div>
-
-                <button type="submit" id="submitBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2">
-                    <span>제출하기</span>
-                </button>
-            </form>
+    <main class="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center relative">
+        <!-- 로딩 오버레이 -->
+        <div id="loading-overlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center">
+            <svg class="animate-spin h-10 w-10 text-teal-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p class="font-bold text-teal-800">연수 정보를 불러오는 중입니다...</p>
         </div>
 
-        <!-- 완료 메시지 섹션 -->
-        <div id="successSection" class="hidden text-center py-10">
-            <div class="mb-6 flex justify-center">
-                <div class="bg-green-100 p-4 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="C5 13l4 4L19 7" />
-                    </svg>
-                </div>
+        <div class="w-full max-w-lg bg-white rounded-3xl shadow-xl p-6 sm:p-8 w-full border border-teal-50">
+            <div class="text-center mb-6">
+                <span id="target-badge" class="inline-block px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-xs font-bold mb-2 hidden">대상</span>
+                <h2 id="title-text" class="text-2xl sm:text-3xl font-black text-gray-800 mb-2"></h2>
+                <div class="w-12 h-1 bg-teal-500 mx-auto rounded-full my-4"></div>
+                <h3 id="question-text" class="text-lg font-bold text-gray-600 break-keep"></h3>
             </div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">제출 완료!</h2>
-            <p class="text-gray-600 mb-8 leading-relaxed">
-                답변이 성공적으로 전달되었습니다.<br>
-                강사님의 진행을 잠시만 기다려주세요.
-            </p>
-            <button onclick="resetForm()" class="text-blue-600 font-semibold hover:underline decoration-2 underline-offset-4">
-                또다른 답변 남기기
+            
+            <!-- 동적 입력칸 컨테이너 -->
+            <div id="input-container" class="space-y-3 mb-8"></div>
+            
+            <button id="submit-btn" onclick="submitData()" class="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-lg hover:bg-teal-700 active:bg-teal-800 transition shadow-md flex justify-center items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                의견 제출하기
             </button>
-        </div>
-
-        <!-- 오류 메시지 -->
-        <div id="errorMessage" class="hidden mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg text-center">
-            전송 중 오류가 발생했습니다. 다시 시도해주세요.
         </div>
     </main>
 
+    <!-- 커스텀 모달 (alert 대체) -->
+    <div id="custom-modal" class="fixed inset-0 bg-black/60 z-[100] hidden flex-col items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm transform transition-all text-center">
+            <h3 id="modal-title" class="text-xl font-bold mb-2 text-gray-800"></h3>
+            <p id="modal-msg" class="text-gray-600 mb-6 text-sm break-keep"></p>
+            <button onclick="document.getElementById('custom-modal').style.display='none'" class="w-full py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition">확인</button>
+        </div>
+    </div>
+
     <script>
-        /**
-         * 주의: 아래 SCRIPT_URL에 구글 앱스 스크립트 '배포' 후 받은 URL을 반드시 붙여넣으세요.
-         */
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxjpXfR_5IR4rVH_sCLP3ijQc4_PTTWrKdU8eIlEIiKnJ7bkY2-yoeU8JXo5FxShuw/exec";
+        // ==========================================
+        // 🚨 중요: 여기에 GAS 웹앱 배포 URL을 붙여넣으세요!
+        // ==========================================
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwvbKJ7HHWnzLMWE48SB-hSpsz7QT6l7FybrvoMcfCvAkqnq4II5rB5bB_DCKRfDSE/exec"; 
 
-        const wordForm = document.getElementById('wordForm');
-        const submitBtn = document.getElementById('submitBtn');
-        const formSection = document.getElementById('formSection');
-        const successSection = document.getElementById('successSection');
-        const errorMessage = document.getElementById('errorMessage');
+        // 커스텀 모달 표시 함수
+        function showModal(title, msg) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-msg').innerHTML = msg;
+            document.getElementById('custom-modal').style.display = 'flex';
+        }
 
-        wordForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            if (SCRIPT_URL.includes("YOUR_APPS_SCRIPT")) {
-                showTemporaryError("설정 오류: 스크립트 URL을 입력해주세요.");
-                return;
+        // API 호출 공통 래퍼 함수
+        async function callGasApi(action, payload = {}) {
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: action, payload: payload })
+                });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message);
+                return result.data;
+            } catch (error) {
+                console.error("API Error:", error);
+                showModal("통신 오류", "서버 통신 오류: " + error.message);
+                throw error;
             }
+        }
 
-            const formData = new FormData(wordForm);
-            const params = new URLSearchParams();
-            
-            let hasValue = false;
-            for (const pair of formData.entries()) {
-                if (pair[1].trim() !== "") {
-                    params.append(pair[0], pair[1]);
-                    hasValue = true;
-                } else {
-                    params.append(pair[0], ""); // 빈 값도 파라미터 구조 유지를 위해 포함
+        // 초기 화면 설정 로드
+        async function init() {
+            try {
+                const config = await callGasApi('getConfig');
+                
+                // UI 업데이트
+                document.getElementById('header-title').innerText = config.title;
+                document.getElementById('title-text').innerText = config.title;
+                document.getElementById('question-text').innerText = config.question;
+                
+                const badge = document.getElementById('target-badge');
+                badge.innerText = config.target;
+                badge.classList.remove('hidden');
+
+                // 입력칸 생성
+                const container = document.getElementById('input-container');
+                container.innerHTML = '';
+                for (let i = 0; i < config.count; i++) {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = "w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-lg font-medium transition shadow-inner placeholder-gray-400";
+                    input.placeholder = `${i + 1}번째 단어 입력`;
+                    container.appendChild(input);
                 }
+
+                document.getElementById('loading-overlay').style.display = 'none';
+            } catch (error) {
+                document.getElementById('loading-overlay').innerHTML = `<p class="text-red-500 font-bold">초기화 실패. 관리자에게 문의하세요.</p>`;
             }
+        }
+
+        // 데이터 제출
+        async function submitData() {
+            const inputs = document.querySelectorAll('#input-container input');
+            const words = [];
             
-            if (!hasValue) {
-                showTemporaryError("최소 한 개의 단어는 입력해야 합니다.");
+            inputs.forEach(input => {
+                const val = input.value.trim();
+                if (val) words.push(val);
+            });
+
+            if (words.length === 0) {
+                showModal("입력 확인", "단어를 하나 이상 입력해주세요.");
                 return;
             }
 
-            setLoading(true);
-            errorMessage.classList.add('hidden');
+            const btn = document.getElementById('submit-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '제출 완료!';
+            btn.disabled = true;
 
             try {
-                // URLSearchParams를 body로 전달하면 구글 스크립트의 e.parameter에서 더 정확하게 인식합니다.
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: params.toString()
-                });
-
-                // 전송 시도 후 성공 화면 표시
-                showSuccess();
+                // 비동기로 백그라운드에서 전송 (await 사용 안 함) -> 사용자 체감 속도 0초
+                callGasApi('submitWords', { words: words }).catch(e => console.error("백그라운드 에러", e));
+                
+                showModal("제출 완료", "성공적으로 제출되었습니다!<br>강사용 화면을 확인해주세요.");
+                inputs.forEach(input => input.value = ''); // 입력칸 즉시 초기화
+                
             } catch (error) {
-                console.error('전송 오류:', error);
-                showTemporaryError("전송 중 문제가 발생했습니다.");
+                showModal("오류", "제출 중 문제가 발생했습니다.");
             } finally {
-                setLoading(false);
-            }
-        });
-
-        function setLoading(isLoading) {
-            if (isLoading) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<div class="loading-spinner"></div><span>제출 중...</span>';
-                submitBtn.classList.add('opacity-70');
-            } else {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<span>제출하기</span>';
-                submitBtn.classList.remove('opacity-70');
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 1500); // 1.5초 후 버튼 다시 활성화
             }
         }
 
-        function showSuccess() {
-            formSection.classList.add('hidden');
-            successSection.classList.remove('hidden');
-        }
-
-        function resetForm() {
-            wordForm.reset();
-            successSection.classList.add('hidden');
-            formSection.classList.remove('hidden');
-            errorMessage.classList.add('hidden');
-        }
-
-        function showTemporaryError(msg) {
-            errorMessage.textContent = msg;
-            errorMessage.classList.remove('hidden');
-            setTimeout(() => errorMessage.classList.add('hidden'), 5000);
-        }
+        window.onload = init;
     </script>
 </body>
 </html>
