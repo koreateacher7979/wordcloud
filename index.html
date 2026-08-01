@@ -64,7 +64,6 @@
     let currentSettings = null;
 
     document.addEventListener("DOMContentLoaded", () => {
-        // 안전장치: URL이 입력되지 않은 경우 에러 방지
         if(GAS_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE" || !GAS_URL.startsWith("http")) {
             Swal.fire({ icon: 'warning', title: '설정 오류', text: 'HTML 코드 내의 GAS_URL에 실제 Apps Script 주소를 입력해주세요.' });
             document.querySelector('.spinner').style.display = 'none';
@@ -76,7 +75,8 @@
 
     async function fetchSettings() {
         try {
-            const response = await fetch(`${GAS_URL}?action=getState`);
+            // [수정됨] 브라우저 캐싱 방지용 타임스탬프 추가
+            const response = await fetch(`${GAS_URL}?action=getState&t=${new Date().getTime()}`);
             const data = await response.json();
             
             if(data.error) throw new Error(data.error);
@@ -143,7 +143,7 @@
                     confirmButtonColor: '#3b82f6',
                     confirmButtonText: '확인'
                 }).then(() => {
-                    inputs.forEach(input => input.value = ''); // 폼 초기화
+                    inputs.forEach(input => input.value = ''); 
                 });
             } else {
                 throw new Error(result.error);
