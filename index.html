@@ -30,7 +30,7 @@
     <!-- Loading State -->
     <div id="loading-view" class="flex flex-col items-center justify-center py-20">
         <div class="spinner mb-4"></div>
-        <p class="text-gray-500 font-medium">연수 정보를 불러오는 중입니다...</p>
+        <p id="loading-text" class="text-gray-500 font-medium">연수 정보를 불러오는 중입니다...</p>
     </div>
 
     <!-- Content View -->
@@ -59,14 +59,17 @@
     // ==============================================================================
     // [중요] 아래 GAS_URL 변수에 복사한 Apps Script '웹 앱 URL'을 반드시 붙여넣으세요!
     // ==============================================================================
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwreKJE-xvoJHEqSfJ-9fmdcf_S1ia5KnlS_8k_8qUrLPmLqQbHvB0YwdgFOH2q2X4/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbx0G23gNrwNmS8knwhixqmbmRAt6ovdw63w1NAVbWd7JPZ_XS3HYWJcBygZiYecfKQ/exec"; 
     
     let currentSettings = null;
 
     document.addEventListener("DOMContentLoaded", () => {
-        if(GAS_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
-            Swal.fire({ icon: 'warning', title: '설정 오류', text: 'HTML 코드 내에 Apps Script 웹 앱 URL을 입력해주세요.' });
-            return;
+        // 안전장치: URL이 입력되지 않은 경우 에러 방지
+        if(GAS_URL === "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE" || !GAS_URL.startsWith("http")) {
+            Swal.fire({ icon: 'warning', title: '설정 오류', text: 'HTML 코드 내의 GAS_URL에 실제 Apps Script 주소를 입력해주세요.' });
+            document.querySelector('.spinner').style.display = 'none';
+            document.getElementById('loading-text').innerHTML = '<span class="text-red-500 font-bold">GAS_URL 설정이 필요합니다.</span>';
+            return; 
         }
         fetchSettings();
     });
